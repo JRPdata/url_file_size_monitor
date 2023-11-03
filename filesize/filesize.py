@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 def http_get_file_size(url):
     try:
-        response = requests.get(url)
+        response = requests.head(url)
         if response.status_code == 200:
             file_size = int(response.headers['Content-Length'])
             return file_size
@@ -14,13 +14,29 @@ def http_get_file_size(url):
         print(f"An error occurred getting {url}: {e}")
         return None
 
+# must pass ftp://username:pass@host.com/path/to/file
+# optionally leave out username:pass and use anonymous as default user/pass
 def ftp_get_file_size(url):
     parsed_url = urlparse(url)
+    file_path = parsed_url.path
     ftp_host = parsed_url.netloc
-    ftp_path = parsed_url.path
+    user_pass_host = ftp_host.split('@')
+    username = 'anonymous'
+
+    if len(user_pass_host) != 1:
+        user_pass = user_pass_host[:-1]
+        ftp_host = user_pass_host[-1]
+        user_pass = user_pass.split(':')
+        username = user_pass[0]
+        if len(user_pass) == 2:
+            password = user_pass[1]
+        else:
+            password = 'anonymous'
+    else:
+        password = 'anonymous'
     try:
         with FTP(ftp_host) as ftp:
-            ftp.login()
+            ftp.login(username,password)
             file_size = ftp.size(ftp_path)
             if file_size >= 0:
                 return file_size
@@ -29,6 +45,11 @@ def ftp_get_file_size(url):
     except Exception as e:
         print(f"An error occurred getting {url}: {e}")
         return None
+    finally:
+        try:
+            ftp.quit()
+        except Exception as e:
+            pass
 
 def get_file_size(url):
     if url.startswith("http://") or url.startswith("https://"):
